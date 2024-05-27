@@ -1,0 +1,56 @@
+pipeline {
+    agent any
+    environment {
+        SONARQUBE_SCANNER_HOME = tool 'SonarQubeScanner'
+        SONARQUBE_SERVER = 'SonarQubeServer'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+              script {
+                    // Ensure the branch name is correct. Default is 'main'.
+                    checkout([$class: 'GitSCM', branches: [[name: '*/main']],
+                              userRemoteConfigs: [[url: 'https://github.com/root703/PythonWeatherApp.git']]])
+                }
+
+                
+            }
+        }
+        stage('Build') {
+            steps {
+                script {
+                    bat 'pip install -r requirements.txt'
+                    bat 'pip install pyinstaller'
+                    bat 'pyinstaller --onefile weather.py'
+                }
+            }
+        }
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    withSonarQubeEnv('SonarQubeServer') {
+                        bat "${SONARQUBE_SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectKey=PythonWeatherApp  -Dsonar.host.url=http://localhost:9000 -Dsonar.login=sqa_b27bdff21c96fa24679aec212ad68af0256ce635"
+                    }
+                }
+            }
+        }
+        stage('Upload Artifacts') {
+            steps {
+                archiveArtifacts artifacts: '**/*.py', fingerprint: true
+            }
+        }
+        stage('Cleanup') {
+            steps {
+                deleteDir()
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning up...'
+            deleteDir()
+        }
+    }
+}
